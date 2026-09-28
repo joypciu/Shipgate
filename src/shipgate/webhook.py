@@ -5,6 +5,8 @@ import hmac
 import json
 from typing import Callable
 
+import httpx
+
 from shipgate.comment import format_comment, review_event, status_for
 from shipgate.diffmap import inline_comments
 from shipgate.github import GitHub
@@ -70,8 +72,17 @@ def handle_webhook(
         raise WebhookError(500, "The review did not finish.") from exc
     body = format_comment(review)
     comments = inline_comments(review, diff)
-    comment_id = github.submit_review(repo, number, sha, body, review_event(review.verdict), comments)
+    comment_id = _submit(github, repo, number, sha, body, review_event(review.verdict), comments)
     state, description = status_for(review)
     github.post_status(repo, sha, state, description)
     store.record(repo, sha, review.run_id, comment_id)
     return {"status": "reviewed", "verdict": review.verdict, "sha": sha, "comment_id": comment_id, "commit_status": state}
+
+
+def _submit(github: GitHub, repo: str, number: int, sha: str, body: str, event: str, comments: list) -> int:
+    try:
+        return github.submit_review(repo, number, sha, body, event, comments)
+    except httpx.HTTPStatusError:
+        if not comments:
+            raise
+        return github.submit_review(repo, number, sha, body, event, None)

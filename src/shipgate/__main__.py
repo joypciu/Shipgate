@@ -1,3 +1,3 @@
-from shipgate.main import main
+from shipgate.cli import main
 
 main()

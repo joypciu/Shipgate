@@ -29,6 +29,12 @@ pytest
 
 `pytest` runs the auth-bypass diff through the demo provider and expects **block** on `auth.py`.
 
+Review one diff file and print the comment. The command exits 0 for ship and 1 for revise or block:
+
+```powershell
+py -m shipgate review auth.diff
+```
+
 ## Webhook
 
 `POST /github/webhook` accepts `pull_request` events whose action is `opened`, `synchronize`, or `reopened`. When `GITHUB_APP_ID` and a private key are set, Shipgate exchanges a short-lived installation token for that delivery. Otherwise it uses `GITHUB_TOKEN`.

@@ -92,6 +92,35 @@ def test_webhook_reviews_a_pull_request_once(tmp_path: Path):
     ]
 
 
+def test_rejected_line_comments_are_sent_again_without_them(tmp_path: Path):
+    store = DeliveryStore(tmp_path / "shipgate.sqlite")
+    github = RejectingLines()
+    body = json.dumps(payload()).encode()
+    result = handle_webhook(
+        body,
+        event="pull_request",
+        signature=signed(body),
+        secret=SECRET,
+        github=github,
+        store=store,
+        review_diff=review_diff,
+    )
+    assert result["verdict"] == "block"
+    assert github.reviews[0][5]
+    assert github.reviews[1][5] == []
+    assert store.seen("joypciu/example", "abc123") is True
+
+
+class RejectingLines(FakeGitHub):
+    def submit_review(self, repo: str, number: int, sha: str, body: str, event: str, comments: list | None = None) -> int:
+        self.reviews.append((repo, number, sha, body, event, comments or []))
+        if comments:
+            request = httpx.Request("POST", "https://api.github.com/reviews")
+            response = httpx.Response(422, request=request)
+            raise httpx.HTTPStatusError("unprocessable", request=request, response=response)
+        return 43
+
+
 def test_a_failed_review_marks_the_commit_as_error(tmp_path: Path):
     store = DeliveryStore(tmp_path / "shipgate.sqlite")
     github = FakeGitHub()
