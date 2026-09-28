@@ -13,3 +13,16 @@ def format_comment(review: Review) -> str:
     lines.append("")
     lines.append(f"Decision Bench run `{review.run_id}`.")
     return "\n".join(lines)
+
+
+def status_for(review: Review) -> tuple[str, str]:
+    if review.status == "succeeded" and review.verdict == "ship":
+        state = "success"
+    elif review.verdict in {"revise", "block"}:
+        state = "failure"
+    else:
+        state = "error"
+    detail = review.verdict
+    if review.risks:
+        detail = f"{review.verdict}: {review.risks[0].file}"
+    return state, detail[:140]

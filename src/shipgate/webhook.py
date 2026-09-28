@@ -5,7 +5,7 @@ import hmac
 import json
 from typing import Callable
 
-from shipgate.comment import format_comment
+from shipgate.comment import format_comment, status_for
 from shipgate.github import GitHub
 from shipgate.review import Review
 from shipgate.store import DeliveryStore
@@ -61,5 +61,7 @@ def handle_webhook(
     diff = github.fetch_diff(repo, number)
     review = review_diff(diff)
     comment_id = github.post_comment(repo, number, format_comment(review))
+    state, description = status_for(review)
+    github.post_status(repo, sha, state, description)
     store.record(repo, sha, review.run_id, comment_id)
-    return {"status": "reviewed", "verdict": review.verdict, "sha": sha, "comment_id": comment_id}
+    return {"status": "reviewed", "verdict": review.verdict, "sha": sha, "comment_id": comment_id, "commit_status": state}

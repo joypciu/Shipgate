@@ -24,6 +24,7 @@ class FakeGitHub(GitHub):
     def __init__(self) -> None:
         super().__init__("token", client=None)
         self.comments = []
+        self.statuses = []
 
     def fetch_diff(self, repo: str, number: int) -> str:
         assert (repo, number) == ("joypciu/example", 7)
@@ -32,6 +33,9 @@ class FakeGitHub(GitHub):
     def post_comment(self, repo: str, number: int, body: str) -> int:
         self.comments.append((repo, number, body))
         return 42
+
+    def post_status(self, repo: str, sha: str, state: str, description: str) -> None:
+        self.statuses.append((repo, sha, state, description))
 
 
 def review_diff(diff: str) -> Review:
@@ -63,6 +67,8 @@ def test_webhook_reviews_a_pull_request_once(tmp_path: Path):
     )
     assert first["verdict"] == "block"
     assert first["comment_id"] == 42
+    assert first["commit_status"] == "failure"
+    assert github.statuses == [("joypciu/example", "abc123", "failure", "block: auth.py")]
     assert second["status"] == "duplicate"
     assert len(github.comments) == 1
     assert "**block**" in github.comments[0][2]

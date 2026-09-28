@@ -22,6 +22,14 @@ class GitHub:
         response.raise_for_status()
         return int(response.json()["id"])
 
+    def post_status(self, repo: str, sha: str, state: str, description: str) -> None:
+        response = self._send(
+            "POST",
+            f"https://api.github.com/repos/{repo}/statuses/{sha}",
+            json={"state": state, "context": "shipgate", "description": description[:140]},
+        )
+        response.raise_for_status()
+
     def _send(self, method: str, url: str, **kwargs) -> httpx.Response:
         headers = {
             "Authorization": f"Bearer {self.token}",
