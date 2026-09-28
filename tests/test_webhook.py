@@ -1,0 +1,109 @@
+import hashlib
+import hmac
+import json
+from pathlib import Path
+
+import httpx
+
+from shipgate.github import GitHub
+from shipgate.review import Review, Risk
+from shipgate.store import DeliveryStore
+from shipgate.webhook import WebhookError, handle_webhook
+
+
+SECRET = "test-secret"
+DIFF = "diff --git a/auth.py b/auth.py\n+    if True:  # bypass auth\n"
+
+
+def signed(body: bytes) -> str:
+    digest = hmac.new(SECRET.encode(), body, hashlib.sha256).hexdigest()
+    return f"sha256={digest}"
+
+
+class FakeGitHub(GitHub):
+    def __init__(self) -> None:
+        super().__init__("token", client=None)
+        self.comments = []
+
+    def fetch_diff(self, repo: str, number: int) -> str:
+        assert (repo, number) == ("joypciu/example", 7)
+        return DIFF
+
+    def post_comment(self, repo: str, number: int, body: str) -> int:
+        self.comments.append((repo, number, body))
+        return 42
+
+
+def review_diff(diff: str) -> Review:
+    assert "bypass auth" in diff
+    return Review("run-9", "block", "Auth bypass.", [Risk("high", "auth.py", "Authentication was weakened.")], "succeeded")
+
+
+def test_webhook_reviews_a_pull_request_once(tmp_path: Path):
+    store = DeliveryStore(tmp_path / "shipgate.sqlite")
+    github = FakeGitHub()
+    body = json.dumps(payload()).encode()
+    first = handle_webhook(
+        body,
+        event="pull_request",
+        signature=signed(body),
+        secret=SECRET,
+        github=github,
+        store=store,
+        review_diff=review_diff,
+    )
+    second = handle_webhook(
+        body,
+        event="pull_request",
+        signature=signed(body),
+        secret=SECRET,
+        github=github,
+        store=store,
+        review_diff=review_diff,
+    )
+    assert first["verdict"] == "block"
+    assert first["comment_id"] == 42
+    assert second["status"] == "duplicate"
+    assert len(github.comments) == 1
+    assert "**block**" in github.comments[0][2]
+
+
+def test_webhook_rejects_a_bad_signature(tmp_path: Path):
+    store = DeliveryStore(tmp_path / "shipgate.sqlite")
+    try:
+        handle_webhook(
+            b"{}",
+            event="pull_request",
+            signature="sha256=nope",
+            secret=SECRET,
+            github=FakeGitHub(),
+            store=store,
+            review_diff=review_diff,
+        )
+    except WebhookError as exc:
+        assert exc.status == 401
+    else:
+        raise AssertionError("expected a signature error")
+
+
+def test_github_fetches_the_diff_and_posts_a_comment():
+    seen = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append((request.method, str(request.url), request.headers["accept"]))
+        if request.method == "GET":
+            return httpx.Response(200, text=DIFF)
+        return httpx.Response(201, json={"id": 9})
+
+    github = GitHub("token", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    assert "bypass auth" in github.fetch_diff("joypciu/example", 7)
+    assert github.post_comment("joypciu/example", 7, "hello") == 9
+    assert seen[0][2] == "application/vnd.github.diff"
+
+
+def payload() -> dict:
+    return {
+        "action": "opened",
+        "repository": {"full_name": "joypciu/example"},
+        "pull_request": {"number": 7, "head": {"sha": "abc123"}},
+    }
