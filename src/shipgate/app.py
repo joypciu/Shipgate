@@ -51,19 +51,29 @@ def create_app() -> FastAPI:
         body = await request.body()
         try:
             credentials = app.state.credentials
+            override = getattr(app.state, "github_override", None)
 
             def open_github(installation_id: int) -> GitHub:
                 with httpx.Client(timeout=30) as client:
                     token = credentials.token_for(installation_id, client)
                 return GitHub(token)
 
+            if override is not None:
+                github = override
+                opener = None
+            elif credentials is not None:
+                github = None
+                opener = open_github
+            else:
+                github = GitHub(app.state.token)
+                opener = None
             return handle_webhook(
                 body,
                 event=request.headers.get("X-GitHub-Event", ""),
                 signature=request.headers.get("X-Hub-Signature-256"),
                 secret=app.state.secret,
-                github=None if credentials is not None else GitHub(app.state.token),
-                open_github=open_github if credentials is not None else None,
+                github=github,
+                open_github=opener,
                 store=app.state.store,
                 review_diff=app.state.reviewer.review,
             )

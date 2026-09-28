@@ -58,6 +58,7 @@ def handle_webhook(
         if open_github is None or "id" not in installation:
             raise WebhookError(400, "Webhook payload has no GitHub App installation.")
         github = open_github(int(installation["id"]))
+    github.post_status(repo, sha, "pending", "Reviewing the diff.")
     diff = github.fetch_diff(repo, number)
     review = review_diff(diff)
     comment_id = github.post_comment(repo, number, format_comment(review))

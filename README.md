@@ -2,7 +2,7 @@
 
 Shipgate is a GitHub App that reviews a pull request and posts one comment: **ship**, **revise**, or **block**, with a file and a reason for each risk.
 
-The decision comes from [Decision Bench](https://github.com/joypciu/decision-bench). The change-risk lead spawns the security, migration, and research checkers. Shipgate posts the lead's schema-valid result and sets a `shipgate` commit status: success for ship, failure for revise or block. It does not post a second comment for the same commit.
+The decision comes from [Decision Bench](https://github.com/joypciu/decision-bench). The change-risk lead spawns the security, migration, and research checkers. Shipgate posts the lead's schema-valid result and sets a `shipgate` commit status. The check is pending while the review runs, then success for ship or failure for revise or block. It does not post a second comment for the same commit.
 
 This folder is a local git repository. It does not have a GitHub remote yet.
 

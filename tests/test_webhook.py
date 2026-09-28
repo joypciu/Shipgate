@@ -68,7 +68,10 @@ def test_webhook_reviews_a_pull_request_once(tmp_path: Path):
     assert first["verdict"] == "block"
     assert first["comment_id"] == 42
     assert first["commit_status"] == "failure"
-    assert github.statuses == [("joypciu/example", "abc123", "failure", "block: auth.py")]
+    assert github.statuses == [
+        ("joypciu/example", "abc123", "pending", "Reviewing the diff."),
+        ("joypciu/example", "abc123", "failure", "block: auth.py"),
+    ]
     assert second["status"] == "duplicate"
     assert len(github.comments) == 1
     assert "**block**" in github.comments[0][2]
