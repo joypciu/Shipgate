@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Review a diff · Shipgate{% endblock %}
+{% block content %}
+<section class="hero">
+  <div>
+    <p class="eyebrow">Pull request gate</p>
+    <h1>Paste a diff. Get a decision.</h1>
+    <p class="lede">Shipgate runs the change-risk lead and its checkers, then shows ship, revise, or block with the file that caused it.</p>
+  </div>
+</section>
+{% if error %}<p class="banner">{{ error }}</p>{% endif %}
+{% if review %}
+<section class="verdict verdict-{{ review.verdict }}">
+  <div>
+    <p class="eyebrow">Verdict</p>
+    <h2>{{ review.verdict }}</h2>
+    <p>{{ review.summary }}</p>
+  </div>
+  <span class="pill">{{ review.status }}</span>
+</section>
+{% if review.risks %}
+<ul class="risks">
+  {% for risk in review.risks %}
+  <li>
+    <span class="sev sev-{{ risk.severity }}">{{ risk.severity }}</span>
+    <code>{{ risk.file }}</code>
+    <p>{{ risk.reason }}</p>
+    {% for line in lines if line.path == risk.file or line.path.endswith('/' + risk.file) %}
+    <p class="quiet">Comment on line {{ line.line }}</p>
+    {% endfor %}
+  </li>
+  {% endfor %}
+</ul>
+{% else %}
+<p class="quiet">No file-level risks.</p>
+{% endif %}
+{% endif %}
+<form class="panel" method="post" action="/reviews">
+  <div class="panel-head">
+    <h2>Diff</h2>
+    <button class="ghost" type="button" id="sample">Load auth-bypass sample</button>
+  </div>
+  <textarea name="diff" rows="14" required placeholder="Paste a unified diff">{{ diff }}</textarea>
+  <div class="actions">
+    <button class="primary" type="submit">Review</button>
+    <p class="quiet">Uses the {{ provider }} provider. Nothing is posted to GitHub from this page.</p>
+  </div>
+</form>
+<script id="sample-diff" type="application/json">{{ sample | tojson }}</script>
+{% endblock %}

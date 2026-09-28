@@ -45,9 +45,9 @@ py -m shipgate review auth.diff
 - `DECISION_BENCH_ROOT` is the Decision Bench checkout that contains `packs/`
 - `SHIPGATE_PROVIDER` (`demo` by default)
 
+Open [http://127.0.0.1:8010](http://127.0.0.1:8010), paste a diff, and click **Review**. The page uses the demo provider and does not post to GitHub. Load the auth-bypass sample to see **block** on `auth.py`.
+
 ```powershell
 $env:DECISION_BENCH_ROOT = "E:\decision-bench"
 py -m shipgate
 ```
-
-The server listens on `127.0.0.1:8010`.

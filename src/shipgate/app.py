@@ -4,9 +4,13 @@ import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.staticfiles import StaticFiles
+from fastapi.templating import Jinja2Templates
 import httpx
 
 from shipgate.app_auth import AppCredentials
+from shipgate.comment import format_comment
+from shipgate.diffmap import inline_comments
 from shipgate.github import GitHub
 from shipgate.review import Reviewer
 from shipgate.store import DeliveryStore
@@ -41,6 +45,47 @@ def create_app() -> FastAPI:
     app.state.secret = secret
     app.state.token = token
     app.state.credentials = AppCredentials(app_id, private_key) if app_id and private_key else None
+    root = Path(__file__).resolve().parents[2]
+    templates = Jinja2Templates(directory=str(root / "web" / "templates"))
+    app.mount("/static", StaticFiles(directory=str(root / "web" / "static")), name="static")
+
+    def page_context(request: Request, **extra):
+        return {
+            "request": request,
+            "provider": os.environ.get("SHIPGATE_PROVIDER", "demo"),
+            "github_app": app.state.credentials is not None,
+            "sample": SAMPLE_DIFF,
+            **extra,
+        }
+
+    @app.get("/")
+    def home(request: Request):
+        return templates.TemplateResponse(request, "home.html", page_context(request, review=None, diff="", error=None))
+
+    @app.post("/reviews")
+    async def review_page(request: Request):
+        form = await request.form()
+        diff = str(form.get("diff") or "")
+        if not diff.strip():
+            return templates.TemplateResponse(
+                request,
+                "home.html",
+                page_context(request, review=None, diff="", error="Paste a diff first."),
+                status_code=400,
+            )
+        review = app.state.reviewer.review(diff)
+        return templates.TemplateResponse(
+            request,
+            "home.html",
+            page_context(
+                request,
+                review=review,
+                diff=diff,
+                error=None,
+                comment=format_comment(review),
+                lines=inline_comments(review, diff),
+            ),
+        )
 
     @app.get("/health")
     def health() -> dict:
@@ -81,3 +126,14 @@ def create_app() -> FastAPI:
             raise HTTPException(status_code=exc.status, detail=exc.detail) from exc
 
     return app
+
+
+SAMPLE_DIFF = """diff --git a/auth.py b/auth.py
+--- a/auth.py
++++ b/auth.py
+@@ -4,7 +4,7 @@ def allow(user):
+-    if user.is_authenticated:
++    if True:  # bypass auth
+         return True
+     return False
+"""
