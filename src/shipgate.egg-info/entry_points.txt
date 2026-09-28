@@ -1,2 +1,0 @@
-[console_scripts]
-shipgate = shipgate.main:main
