@@ -12,7 +12,13 @@ from shipgate.webhook import WebhookError, handle_webhook
 
 
 SECRET = "test-secret"
-DIFF = "diff --git a/auth.py b/auth.py\n+    if True:  # bypass auth\n"
+DIFF = """diff --git a/auth.py b/auth.py
+--- a/auth.py
++++ b/auth.py
+@@ -4,7 +4,7 @@ def allow(user):
+-    if user.is_authenticated:
++    if True:  # bypass auth
+"""
 
 
 def signed(body: bytes) -> str:
@@ -35,8 +41,8 @@ class FakeGitHub(GitHub):
         self.comments.append((repo, number, body))
         return 42
 
-    def submit_review(self, repo: str, number: int, sha: str, body: str, event: str) -> int:
-        self.reviews.append((repo, number, sha, body, event))
+    def submit_review(self, repo: str, number: int, sha: str, body: str, event: str, comments: list | None = None) -> int:
+        self.reviews.append((repo, number, sha, body, event, comments or []))
         return 42
 
     def post_status(self, repo: str, sha: str, state: str, description: str) -> None:
@@ -81,6 +87,9 @@ def test_webhook_reviews_a_pull_request_once(tmp_path: Path):
     assert len(github.reviews) == 1
     assert github.reviews[0][4] == "REQUEST_CHANGES"
     assert "**block**" in github.reviews[0][3]
+    assert github.reviews[0][5] == [
+        {"path": "auth.py", "line": 4, "side": "RIGHT", "body": "**high** Authentication was weakened."}
+    ]
 
 
 def test_a_failed_review_marks_the_commit_as_error(tmp_path: Path):

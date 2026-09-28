@@ -6,6 +6,7 @@ import json
 from typing import Callable
 
 from shipgate.comment import format_comment, review_event, status_for
+from shipgate.diffmap import inline_comments
 from shipgate.github import GitHub
 from shipgate.review import Review
 from shipgate.store import DeliveryStore
@@ -68,7 +69,8 @@ def handle_webhook(
         github.post_status(repo, sha, "error", f"Review failed: {exc}"[:140])
         raise WebhookError(500, "The review did not finish.") from exc
     body = format_comment(review)
-    comment_id = github.submit_review(repo, number, sha, body, review_event(review.verdict))
+    comments = inline_comments(review, diff)
+    comment_id = github.submit_review(repo, number, sha, body, review_event(review.verdict), comments)
     state, description = status_for(review)
     github.post_status(repo, sha, state, description)
     store.record(repo, sha, review.run_id, comment_id)

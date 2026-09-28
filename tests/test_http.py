@@ -31,8 +31,9 @@ class RouteGitHub(GitHub):
     def fetch_diff(self, repo: str, number: int) -> str:
         return DIFF
 
-    def submit_review(self, repo: str, number: int, sha: str, body: str, event: str) -> int:
+    def submit_review(self, repo: str, number: int, sha: str, body: str, event: str, comments: list | None = None) -> int:
         self.comments.append(body)
+        self.inline = comments or []
         assert event == "REQUEST_CHANGES"
         return 11
 
@@ -77,5 +78,7 @@ def test_webhook_route_blocks_the_auth_bypass(monkeypatch, tmp_path):
     assert accepted.json()["verdict"] == "block"
     assert "**block**" in github.comments[0]
     assert "`auth.py`" in github.comments[0]
+    assert github.inline[0]["path"] == "auth.py"
+    assert github.inline[0]["line"] > 0
     assert github.statuses[-1] == ("failure", "block: auth.py")
     os.environ.pop("GITHUB_WEBHOOK_SECRET", None)
