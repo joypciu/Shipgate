@@ -101,9 +101,32 @@ def test_github_fetches_the_diff_and_posts_a_comment():
     assert seen[0][2] == "application/vnd.github.diff"
 
 
+def test_webhook_mints_an_installation_token(tmp_path: Path):
+    store = DeliveryStore(tmp_path / "shipgate.sqlite")
+    opened = []
+
+    def open_github(installation_id: int) -> GitHub:
+        opened.append(installation_id)
+        return FakeGitHub()
+
+    body = json.dumps(payload()).encode()
+    result = handle_webhook(
+        body,
+        event="pull_request",
+        signature=signed(body),
+        secret=SECRET,
+        open_github=open_github,
+        store=store,
+        review_diff=review_diff,
+    )
+    assert opened == [99]
+    assert result["verdict"] == "block"
+
+
 def payload() -> dict:
     return {
         "action": "opened",
+        "installation": {"id": 99},
         "repository": {"full_name": "joypciu/example"},
         "pull_request": {"number": 7, "head": {"sha": "abc123"}},
     }

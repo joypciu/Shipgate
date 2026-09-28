@@ -34,7 +34,8 @@ def handle_webhook(
     event: str,
     signature: str | None,
     secret: str,
-    github: GitHub,
+    github: GitHub | None = None,
+    open_github: Callable[[int], GitHub] | None = None,
     store: DeliveryStore,
     review_diff: Callable[[str], Review],
 ) -> dict:
@@ -52,6 +53,11 @@ def handle_webhook(
     number = int(pull["number"])
     if store.seen(repo, sha):
         return {"status": "duplicate", "sha": sha}
+    if github is None:
+        installation = payload.get("installation") or {}
+        if open_github is None or "id" not in installation:
+            raise WebhookError(400, "Webhook payload has no GitHub App installation.")
+        github = open_github(int(installation["id"]))
     diff = github.fetch_diff(repo, number)
     review = review_diff(diff)
     comment_id = github.post_comment(repo, number, format_comment(review))

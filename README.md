@@ -23,11 +23,12 @@ pytest
 
 ## Webhook
 
-`POST /github/webhook` accepts `pull_request` events whose action is `opened`, `synchronize`, or `reopened`. Set:
+`POST /github/webhook` accepts `pull_request` events whose action is `opened`, `synchronize`, or `reopened`. When `GITHUB_APP_ID` and a private key are set, Shipgate exchanges a short-lived installation token for that delivery. Otherwise it uses `GITHUB_TOKEN`.
 
-- `GITHUB_WEBHOOK_SECRET` to verify `X-Hub-Signature-256`
-- `GITHUB_TOKEN` to read the diff and post the comment
-- `DECISION_BENCH_ROOT` to the Decision Bench checkout that contains `packs/`
+- `GITHUB_WEBHOOK_SECRET` verifies `X-Hub-Signature-256`
+- `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY` (PEM text, or `GITHUB_APP_PRIVATE_KEY_PATH`) identify the GitHub App
+- `GITHUB_TOKEN` is the fallback when the app key is not set
+- `DECISION_BENCH_ROOT` is the Decision Bench checkout that contains `packs/`
 - `SHIPGATE_PROVIDER` (`demo` by default)
 
 ```powershell
