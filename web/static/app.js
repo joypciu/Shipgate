@@ -1,10 +1,24 @@
 const sample = document.getElementById("sample-diff");
-const button = document.getElementById("sample");
 const field = document.querySelector("textarea[name=diff]");
-if (sample && button && field) {
-  button.addEventListener("click", () => {
-    field.value = JSON.parse(sample.textContent || '""');
-    field.focus();
+if (sample && field) {
+  const samples = JSON.parse(sample.textContent || "[]");
+  document.querySelectorAll("[data-sample]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const item = samples.find((entry) => entry.id === button.dataset.sample);
+      if (!item) return;
+      field.value = item.diff;
+      const job = document.getElementById("bot-id");
+      if (job && item.bot_id) job.value = item.bot_id;
+      field.focus();
+    });
+  });
+}
+const copy = document.getElementById("copy-comment");
+const comment = document.getElementById("comment-text");
+if (copy && comment) {
+  copy.addEventListener("click", async () => {
+    await navigator.clipboard.writeText(comment.textContent || "");
+    copy.textContent = "Copied";
   });
 }
 document.querySelectorAll("form").forEach((form) => {

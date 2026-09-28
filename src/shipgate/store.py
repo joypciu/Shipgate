@@ -21,6 +21,17 @@ class DeliveryStore:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS local_reviews (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    bot_id TEXT NOT NULL,
+                    verdict TEXT NOT NULL,
+                    summary TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
 
     def seen(self, repo: str, sha: str) -> bool:
         with self._conn() as connection:
@@ -36,6 +47,21 @@ class DeliveryStore:
                 "INSERT INTO deliveries (repo, sha, run_id, comment_id) VALUES (?, ?, ?, ?)",
                 (repo, sha, run_id, comment_id),
             )
+
+    def add_local(self, bot_id: str, verdict: str, summary: str) -> None:
+        with self._conn() as connection:
+            connection.execute(
+                "INSERT INTO local_reviews (bot_id, verdict, summary) VALUES (?, ?, ?)",
+                (bot_id, verdict, summary[:180]),
+            )
+
+    def recent_local(self, limit: int = 8) -> list[dict]:
+        with self._conn() as connection:
+            rows = connection.execute(
+                "SELECT bot_id, verdict, summary, created_at FROM local_reviews ORDER BY id DESC LIMIT ?",
+                (limit,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def _conn(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self.path)

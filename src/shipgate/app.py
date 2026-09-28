@@ -9,8 +9,8 @@ from fastapi.templating import Jinja2Templates
 import httpx
 
 from shipgate.app_auth import AppCredentials
-from shipgate.comment import format_comment
-from shipgate.diffmap import inline_comments
+from shipgate.comment import format_comment, review_event, status_for
+from shipgate.diffmap import diff_stats, inline_comments
 from shipgate.github import GitHub
 from shipgate.review import Reviewer
 from shipgate.store import DeliveryStore
@@ -55,25 +55,50 @@ def create_app() -> FastAPI:
             "provider": os.environ.get("SHIPGATE_PROVIDER", "demo"),
             "github_app": app.state.credentials is not None,
             "sample": SAMPLE_DIFF,
+            "samples": SAMPLES,
+            "jobs": JOBS,
             **extra,
         }
 
     @app.get("/")
     def home(request: Request):
-        return templates.TemplateResponse(request, "home.html", page_context(request, review=None, diff="", error=None))
+        return templates.TemplateResponse(
+            request,
+            "home.html",
+            page_context(request, review=None, diff="", error=None, bot_id="change-lead", recent=app.state.store.recent_local()),
+        )
 
     @app.post("/reviews")
     async def review_page(request: Request):
         form = await request.form()
         diff = str(form.get("diff") or "")
+        bot_id = str(form.get("bot_id") or "change-lead")
+        if bot_id not in JOBS:
+            return templates.TemplateResponse(
+                request,
+                "home.html",
+                page_context(request, review=None, diff=diff, error="Choose a change-risk or incident review.", bot_id="change-lead", recent=app.state.store.recent_local()),
+                status_code=400,
+            )
         if not diff.strip():
             return templates.TemplateResponse(
                 request,
                 "home.html",
-                page_context(request, review=None, diff="", error="Paste a diff first."),
+                page_context(request, review=None, diff="", error="Paste a diff first.", bot_id=bot_id, recent=app.state.store.recent_local()),
                 status_code=400,
             )
-        review = app.state.reviewer.review(diff)
+        try:
+            review = app.state.reviewer.review(diff, bot_id)
+        except ValueError as exc:
+            return templates.TemplateResponse(
+                request,
+                "home.html",
+                page_context(request, review=None, diff=diff, error=str(exc), bot_id=bot_id, recent=app.state.store.recent_local()),
+                status_code=400,
+            )
+        app.state.store.add_local(bot_id, review.verdict, review.summary)
+        github_event = review_event(review.verdict) if review.verdict in {"ship", "revise", "block"} else ""
+        commit_state = status_for(review)[0] if github_event else ""
         return templates.TemplateResponse(
             request,
             "home.html",
@@ -84,6 +109,11 @@ def create_app() -> FastAPI:
                 error=None,
                 comment=format_comment(review),
                 lines=inline_comments(review, diff),
+                bot_id=bot_id,
+                stats=diff_stats(diff),
+                github_event=github_event,
+                commit_state=commit_state,
+                recent=app.state.store.recent_local(),
             ),
         )
 
@@ -137,3 +167,34 @@ SAMPLE_DIFF = """diff --git a/auth.py b/auth.py
          return True
      return False
 """
+
+MIGRATION_DIFF = """diff --git a/migrations/2026_drop_users.py b/migrations/2026_drop_users.py
+--- /dev/null
++++ b/migrations/2026_drop_users.py
+@@ -0,0 +1,2 @@
++def upgrade():
++    execute("DROP TABLE users")
+"""
+
+README_DIFF = """diff --git a/README.md b/README.md
+--- a/README.md
++++ b/README.md
+@@ -1 +1 @@
+-Hello
++Hello there
+"""
+
+INCIDENT_REPORT = """Production API outage. All users are affected and there is data loss in orders since 02:10 UTC.
+"""
+
+SAMPLES = [
+    {"id": "block", "label": "Auth bypass", "diff": SAMPLE_DIFF, "bot_id": "change-lead"},
+    {"id": "revise", "label": "Drop table", "diff": MIGRATION_DIFF, "bot_id": "change-lead"},
+    {"id": "ship", "label": "Readme wording", "diff": README_DIFF, "bot_id": "change-lead"},
+    {"id": "sev1", "label": "Outage report", "diff": INCIDENT_REPORT, "bot_id": "incident-lead"},
+]
+
+JOBS = {
+    "change-lead": "Change-risk",
+    "incident-lead": "Incident triage",
+}

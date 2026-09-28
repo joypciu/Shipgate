@@ -24,6 +24,13 @@ class Review:
     status: str
 
 
+def clean_file(path: str) -> str:
+    name = path.replace("\\", "/").strip()
+    if name.startswith("a/") or name.startswith("b/"):
+        return name[2:]
+    return name
+
+
 class Reviewer:
     def __init__(self, state, provider: str = "demo") -> None:
         self.state = state
@@ -35,10 +42,10 @@ class Reviewer:
         app = create_app(settings)
         return cls(app.state.work, provider=provider)
 
-    def review(self, diff: str) -> Review:
+    def review(self, diff: str, bot_id: str = "change-lead") -> Review:
         run = start_run(
             self.state,
-            bot_id="change-lead",
+            bot_id=bot_id,
             text=diff,
             provider=self.provider,
         )
@@ -50,13 +57,14 @@ class Reviewer:
             risks.append(
                 Risk(
                     severity=str(item.get("severity") or "low"),
-                    file=str(item.get("file") or "unknown"),
+                    file=clean_file(str(item.get("file") or "unknown")),
                     reason=str(item.get("reason") or ""),
                 )
             )
+        verdict = output.get("verdict") or output.get("severity") or run.status
         return Review(
             run_id=run.id,
-            verdict=str(output.get("verdict") or run.status),
+            verdict=str(verdict),
             summary=str(output.get("summary") or ""),
             risks=risks,
             status=run.status,

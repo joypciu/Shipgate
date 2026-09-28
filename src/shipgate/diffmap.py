@@ -34,6 +34,18 @@ def changed_lines(diff: str) -> dict[str, int]:
     return found
 
 
+def diff_stats(diff: str) -> dict[str, int]:
+    files = added = removed = 0
+    for line in diff.splitlines():
+        if line.startswith("diff --git "):
+            files += 1
+        elif line.startswith("+") and not line.startswith("+++"):
+            added += 1
+        elif line.startswith("-") and not line.startswith("---"):
+            removed += 1
+    return {"files": files, "added": added, "removed": removed}
+
+
 def inline_comments(review: Review, diff: str) -> list[dict]:
     lines = changed_lines(diff)
     comments = []
