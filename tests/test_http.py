@@ -31,8 +31,9 @@ class RouteGitHub(GitHub):
     def fetch_diff(self, repo: str, number: int) -> str:
         return DIFF
 
-    def post_comment(self, repo: str, number: int, body: str) -> int:
+    def submit_review(self, repo: str, number: int, sha: str, body: str, event: str) -> int:
         self.comments.append(body)
+        assert event == "REQUEST_CHANGES"
         return 11
 
     def post_status(self, repo: str, sha: str, state: str, description: str) -> None:

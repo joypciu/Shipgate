@@ -22,6 +22,15 @@ class GitHub:
         response.raise_for_status()
         return int(response.json()["id"])
 
+    def submit_review(self, repo: str, number: int, sha: str, body: str, event: str) -> int:
+        response = self._send(
+            "POST",
+            f"https://api.github.com/repos/{repo}/pulls/{number}/reviews",
+            json={"commit_id": sha, "body": body, "event": event},
+        )
+        response.raise_for_status()
+        return int(response.json()["id"])
+
     def post_status(self, repo: str, sha: str, state: str, description: str) -> None:
         response = self._send(
             "POST",

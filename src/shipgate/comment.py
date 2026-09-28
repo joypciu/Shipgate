@@ -26,3 +26,11 @@ def status_for(review: Review) -> tuple[str, str]:
     if review.risks:
         detail = f"{review.verdict}: {review.risks[0].file}"
     return state, detail[:140]
+
+
+def review_event(verdict: str) -> str:
+    if verdict == "ship":
+        return "APPROVE"
+    if verdict == "block":
+        return "REQUEST_CHANGES"
+    return "COMMENT"

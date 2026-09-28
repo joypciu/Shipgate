@@ -25,6 +25,7 @@ class FakeGitHub(GitHub):
         super().__init__("token", client=None)
         self.comments = []
         self.statuses = []
+        self.reviews = []
 
     def fetch_diff(self, repo: str, number: int) -> str:
         assert (repo, number) == ("joypciu/example", 7)
@@ -32,6 +33,10 @@ class FakeGitHub(GitHub):
 
     def post_comment(self, repo: str, number: int, body: str) -> int:
         self.comments.append((repo, number, body))
+        return 42
+
+    def submit_review(self, repo: str, number: int, sha: str, body: str, event: str) -> int:
+        self.reviews.append((repo, number, sha, body, event))
         return 42
 
     def post_status(self, repo: str, sha: str, state: str, description: str) -> None:
@@ -73,8 +78,9 @@ def test_webhook_reviews_a_pull_request_once(tmp_path: Path):
         ("joypciu/example", "abc123", "failure", "block: auth.py"),
     ]
     assert second["status"] == "duplicate"
-    assert len(github.comments) == 1
-    assert "**block**" in github.comments[0][2]
+    assert len(github.reviews) == 1
+    assert github.reviews[0][4] == "REQUEST_CHANGES"
+    assert "**block**" in github.reviews[0][3]
 
 
 def test_a_failed_review_marks_the_commit_as_error(tmp_path: Path):
@@ -101,7 +107,26 @@ def test_a_failed_review_marks_the_commit_as_error(tmp_path: Path):
         raise AssertionError("expected the review failure")
     assert github.statuses[-1] == ("joypciu/example", "abc123", "error", "Review failed: provider down")
     assert github.comments == []
+    assert github.reviews == []
     assert store.seen("joypciu/example", "abc123") is False
+
+
+def test_a_draft_pull_request_is_not_reviewed(tmp_path: Path):
+    store = DeliveryStore(tmp_path / "shipgate.sqlite")
+    github = FakeGitHub()
+    body = json.dumps({**payload(), "pull_request": {**payload()["pull_request"], "draft": True}}).encode()
+    result = handle_webhook(
+        body,
+        event="pull_request",
+        signature=signed(body),
+        secret=SECRET,
+        github=github,
+        store=store,
+        review_diff=review_diff,
+    )
+    assert result == {"status": "ignored", "action": "draft"}
+    assert github.reviews == []
+    assert github.statuses == []
 
 
 def test_webhook_rejects_a_bad_signature(tmp_path: Path):

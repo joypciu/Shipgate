@@ -5,13 +5,13 @@ import hmac
 import json
 from typing import Callable
 
-from shipgate.comment import format_comment, status_for
+from shipgate.comment import format_comment, review_event, status_for
 from shipgate.github import GitHub
 from shipgate.review import Review
 from shipgate.store import DeliveryStore
 
 
-REVIEW_ACTIONS = {"opened", "synchronize", "reopened"}
+REVIEW_ACTIONS = {"opened", "synchronize", "reopened", "ready_for_review"}
 
 
 class WebhookError(Exception):
@@ -51,6 +51,8 @@ def handle_webhook(
     repo = payload["repository"]["full_name"]
     sha = pull["head"]["sha"]
     number = int(pull["number"])
+    if pull.get("draft"):
+        return {"status": "ignored", "action": "draft"}
     if store.seen(repo, sha):
         return {"status": "duplicate", "sha": sha}
     if github is None:
@@ -65,7 +67,8 @@ def handle_webhook(
     except Exception as exc:
         github.post_status(repo, sha, "error", f"Review failed: {exc}"[:140])
         raise WebhookError(500, "The review did not finish.") from exc
-    comment_id = github.post_comment(repo, number, format_comment(review))
+    body = format_comment(review)
+    comment_id = github.submit_review(repo, number, sha, body, review_event(review.verdict))
     state, description = status_for(review)
     github.post_status(repo, sha, state, description)
     store.record(repo, sha, review.run_id, comment_id)
