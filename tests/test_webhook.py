@@ -77,6 +77,33 @@ def test_webhook_reviews_a_pull_request_once(tmp_path: Path):
     assert "**block**" in github.comments[0][2]
 
 
+def test_a_failed_review_marks_the_commit_as_error(tmp_path: Path):
+    store = DeliveryStore(tmp_path / "shipgate.sqlite")
+    github = FakeGitHub()
+    body = json.dumps(payload()).encode()
+
+    def explode(_diff: str) -> Review:
+        raise RuntimeError("provider down")
+
+    try:
+        handle_webhook(
+            body,
+            event="pull_request",
+            signature=signed(body),
+            secret=SECRET,
+            github=github,
+            store=store,
+            review_diff=explode,
+        )
+    except WebhookError as exc:
+        assert exc.status == 500
+    else:
+        raise AssertionError("expected the review failure")
+    assert github.statuses[-1] == ("joypciu/example", "abc123", "error", "Review failed: provider down")
+    assert github.comments == []
+    assert store.seen("joypciu/example", "abc123") is False
+
+
 def test_webhook_rejects_a_bad_signature(tmp_path: Path):
     store = DeliveryStore(tmp_path / "shipgate.sqlite")
     try:

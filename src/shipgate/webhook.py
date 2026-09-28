@@ -60,7 +60,11 @@ def handle_webhook(
         github = open_github(int(installation["id"]))
     github.post_status(repo, sha, "pending", "Reviewing the diff.")
     diff = github.fetch_diff(repo, number)
-    review = review_diff(diff)
+    try:
+        review = review_diff(diff)
+    except Exception as exc:
+        github.post_status(repo, sha, "error", f"Review failed: {exc}"[:140])
+        raise WebhookError(500, "The review did not finish.") from exc
     comment_id = github.post_comment(repo, number, format_comment(review))
     state, description = status_for(review)
     github.post_status(repo, sha, state, description)

@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 from shipgate.review import Reviewer
@@ -14,9 +15,19 @@ AUTH = """diff --git a/auth.py b/auth.py
 """
 
 
+def bench_root() -> Path:
+    env = os.environ.get("DECISION_BENCH_ROOT")
+    if env:
+        return Path(env)
+    sibling = Path(__file__).resolve().parents[2] / "decision-bench"
+    if (sibling / "packs").is_dir():
+        return sibling
+    return Path("decision-bench")
+
+
 def test_demo_change_lead_blocks_an_auth_bypass(tmp_path: Path):
     reviewer = Reviewer.open(
-        bench_root=Path(r"E:\decision-bench"),
+        bench_root=bench_root(),
         database=tmp_path / "decision_bench.sqlite",
     )
     review = reviewer.review(AUTH)
